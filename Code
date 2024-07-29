@@ -1,0 +1,267 @@
+#Importing Modules
+
+import os
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import time
+
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import MinMaxScaler
+
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.metrics import accuracy_score, confusion_matrix
+import time
+
+#Data Loading
+df = pd.read_csv('KDDTrain+.txt')
+dftest = pd.read_csv('KDDTest+.txt')
+dftest.head()
+df.shape
+
+# DATA PRE-PROCESSING
+
+
+# Data Extraction
+columns = (['duration','protocol_type','service','flag','src_bytes','dst_bytes','land',
+'wrong_fragment','urgent','hot','num_failed_logins','logged_in','num_compromised','root_shell',
+'su_attempted','num_root','num_file_creations','num_shells','num_access_files','num_outbound_cmds',
+'is_host_login','is_guest_login','count','srv_count','serror_rate','srv_serror_rate','rerror_rate',
+'srv_rerror_rate','same_srv_rate','diff_srv_rate','srv_diff_host_rate','dst_host_count','dst_host_srv_count',
+'dst_host_same_srv_rate','dst_host_diff_srv_rate','dst_host_same_src_port_rate','dst_host_srv_diff_host_rate',
+'dst_host_serror_rate','dst_host_srv_serror_rate','dst_host_rerror_rate','dst_host_srv_rerror_rate',
+'attack','level'])
+
+df.columns = columns
+dftest.columns = columns
+dftest.head()
+
+print(df.isnull().sum())
+duration_range = (df["duration"].min(), df["duration"].max())
+print(duration_range)
+
+# Data transformation
+
+dos_attacks = ['apache2','back','land','neptune','mailbomb','pod','processtable','smurf',
+                'teardrop','udpstorm','worm']
+
+probe_attacks = ['ipsweep','mscan','nmap','portsweep','saint','satan']
+
+privilege_attacks = ['buffer_overflow','loadmdoule','perl','ps','rootkit','sqlattack','xterm']
+
+access_attacks = ['ftp_write','guess_passwd','http_tunnel','imap','multihop','named','phf','sendmail,
+  'snmpgetattack','snmpguess','spy','warezclient','warezmaster','xclock','xsnoop']
+
+attack_labels = ['Normal','DoS','Probe','Privilege','Access']
+
+def map_attack(attack):
+    if attack in dos_attacks:
+        attack_type = 1
+
+    elif attack in probe_attacks:
+        attack_type = 2
+
+    elif attack in privilege_attacks:
+        attack_type = 3
+
+    elif attack in access_attacks:
+        attack_type = 4
+
+    else:
+        attack_type = 0
+    return attack_type
+
+df['attack_map'] = df.attack.apply(map_attack)
+dftest['attack_map'] = dftest.attack.apply(map_attack)
+df.head()
+df = df.dropna('columns')
+dftest = dftest.dropna('columns')
+
+#Heat map
+df = df.dropna ('columns')
+dftest = dftest.dropna('columns')
+dfH = df.drop('attack_map', axis = 1)
+dfH = dfH[[col for col in dfH if dfH[col].nunique() > 1
+plt.figure(figsize =(50, 15))
+sns.heatmap(dfH.corr(), annot=True)
+plt.show()
+
+#Droping highly correlated features
+
+df.drop('num_root', axis = 1, inplace = True)
+df.drop('srv_serror_rate', axis = 1, inplace = True)
+df.drop('srv_rerror_rate', axis = 1, inplace = True)
+df.drop('dst_host_srv_serror_rate', axis = 1, inplace = True)
+df.drop('dst_host_serror_rate', axis = 1, inplace = True)
+df.drop('dst_host_rerror_rate', axis = 1, inplace = True)
+df.drop('dst_host_srv_rerror_rate', axis = 1, inplace = True)
+df.drop('dst_host_same_srv_rate', axis = 1, inplace = True)
+
+dftest.drop('num_root', axis = 1, inplace = True)
+dftest.drop('srv_serror_rate', axis = 1, inplace = True)
+dftest.drop('srv_rerror_rate', axis = 1, inplace = True)
+dftest.drop('dst_host_srv_serror_rate', axis = 1, inplace = True) 
+dftest.drop('dst_host_serror_rate', axis = 1, inplace = True)
+dftest.drop('dst_host_rerror_rate', axis = 1, inplace = True) 
+dftest.drop('dst_host_srv_rerror_rate', axis = 1, inplace = True) 
+dftest.drop('dst_host_same_srv_rate', axis = 1, inplace = True)
+
+#Feature Engineering
+
+# Finding categorical features
+num_cols = df._get_numeric_data().columns
+  
+cate_cols = list(set(df.columns)-set(num_cols))
+cate_cols.remove('attack')
+
+num_cols_t = dftest._get_numeric_data().columns
+  
+cate_cols_t = list(set(dftest.columns)-set(num_cols))
+cate_cols_t.remove('attack')
+print(cate_cols)
+
+from sklearn import preprocessing
+le=preprocessing.LabelEncoder()
+clm=['flag', 'protocol_type', 'service']
+for x in clm:
+    df[x]=le.fit_transform(df[x])
+    dftest[x]=le.transform(dftest[x])
+
+X = df.drop(['attack', ], axis = 1)
+Xt = dftest.drop(['attack', ], axis = 1)
+y = X[['attack_map']]
+ytest= Xt[['attack_map']]
+X = X.drop(['attack_map', ], axis = 1)
+Xtest=Xt.drop(['attack_map', ], axis = 1)
+
+#Feature Scaling
+sc = MinMaxScaler()
+X = sc.fit_transform(X)
+Xtest =sc.transform(Xtest)
+
+print(X.shape)
+print(Xtest.shape)
+
+#Taget Classification
+#X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.33, random_state = 42)
+X_train = X
+X_test = Xtest
+y_train= y
+y_test = ytest
+print(X_train.shape, X_test.shape)
+print(y_train.shape, y_test.shape)
+
+#Model Training
+#1. Decision Trees
+clfd = DecisionTreeClassifier(criterion='entropy', max_depth = 5)
+start_time = time.time()
+clfd.fit(X_train, y_train)
+end_time = time.time()
+print("Training time: ", end_time-start_time)
+
+start_time = time.time()
+train_pred = clfd.predict(X_train)
+test_pred = clfd.predict(X_test)
+end_time = time.time()
+print("Testing time: ", end_time-start_time)
+
+print("Train score is:", clfd.score(X_train, y_train))
+print("Test score is:", clfd.score(X_test, y_test))
+
+train_accuracy = accuracy_score(y_train,train_pred)
+test_accuracy = accuracy_score(y_test, test_pred)
+
+print("Train accuracy is:", train_accuracy)
+print("Test accuracy is:", test_accuracy)
+
+train_cm = confusion_matrix(y_train, train_pred)
+test_cm = confusion_matrix(y_test, test_pred)
+print("Train confusion matrix is:")
+print(train_cm)
+print("Test confusion matrix is:")
+print(test_cm)
+# Random Forest
+from sklearn.ensemble import RandomForestClassifier
+rf = RandomForestClassifier (n_estimators=100, max_depth=5)
+rf.fi t(X_train, y_train)
+predictions = rf.predict (X_test)
+
+# Evaluate the accuracy of the model
+accuracy = accuracy_score(y_test, predictions)
+print('Accuracy:', accuracy)
+
+#Confusion Matrix
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+label_names = ['Normal','DoS', 'Probe', 'U2R', 'R2L']
+
+train_cm = confusion_matrix(y_train, train_pred)
+
+sns.heatmap(train_cm, annot=True, cmap='Blues', fmt='g', 
+            xticklabels=label_names, yticklabels=label_names)
+plt.title('Confusion Matrix - Train Set')
+plt.xlabel('Predicted Labels')
+plt.ylabel('True Labels')
+plt.show()
+
+test_cm = confusion_matrix(y_test, test_pred)
+
+sns.heatmap(test_cm, annot=True, cmap='Blues', fmt='g', 
+            xticklabels=label_names, yticklabels=label_names)
+plt.title('Confusion Matrix - Test Set')
+plt.xlabel('Predicted Labels')
+plt.ylabel('True Labels')
+plt.show()
+
+from sklearn.metrics import classification_report
+print(classification_report(y_test,y_test,target_names=['Normal','DOS','Probe','R2L','U2R']))
+
+from joblib import dump
+
+# Save the model as a pickle file
+dump(clfd, 'model.pkl')
+ 
+FLASK CODE
+#Modules
+from flask import Flask, render_template, request, jsonify
+import pandas as pd
+import pickle
+from joblib import load
+from sklearn.preprocessing import MinMaxScaler
+from collections import Counter
+
+# Load the saved model
+clfd = load('model.pkl')
+app = Flask(__name__)
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/predict', methods=['POST'])
+def predict():
+    
+    ds = request.files['dataset']
+    df = pd.read_csv(ds)
+    from featureExtraction import process_data
+    X=process_data(df)
+
+    class_labels = {0: 'Normal', 1: 'DoS', 2: 'Probe', 3: 'U2R', 4: 'R2L'}
+
+    predictions = clfd.predict(X)
+
+    predictions_str = [class_labels[prediction] for prediction in predictions]
+
+    label_counts = Counter(predictions_str)
+  
+    output_dict = {
+        'predictions': predictions_str,
+        'label_counts': dict(label_counts)
+    }
+
+    return render_template('results.html', predictions=output_dict['predictions'], label_counts=output_dict['label_counts'])
+
+if __name__ == '__main__':
+    app.run(debug=True)
